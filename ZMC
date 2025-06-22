@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+/**
+ * @title ZENA Token (ERC20)
+ */
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract ZenaToken is ERC20, Ownable {
+    constructor() ERC20("ZENA Token", "ZENA") {
+        _mint(msg.sender, 1000000000 * 10 ** decimals()); // 1 Billion Tokens
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+}
+
+/**
+ * @title ZENA Review Contract
+ * @notice Rewards learners and reviewers based on project feedback.
+ */
+contract ZenaReview {
+    ZenaToken public token;
+    address public admin;
+
+    struct Project {
+        address learner;
+        string projectHash;
+        bool reviewed;
+    }
+
+    struct Review {
+        address reviewer;
+        string feedback;
+        uint256 timestamp;
+    }
+
+    mapping(uint256 => Project) public projects;
+    mapping(uint256 => Review) public reviews;
+    uint256 public projectCount;
+    
+    event ProjectSubmitted(uint256 indexed id, address indexed learner);
+    event ProjectReviewed(uint256 indexed id, address indexed reviewer);
+
+    constructor(address _token) {
+        token = ZenaToken(_token);
+        admin = msg.sender;
+    }
+
+    function submitProject(string memory projectHash) external {
+        projectCount++;
+        projects[projectCount] = Project(msg.sender, projectHash, false);
+        emit ProjectSubmitted(projectCount, msg.sender);
+    }
+
+    function reviewProject(uint256 projectId, string memory feedback) external {
+        require(!projects[projectId].reviewed, "Project already reviewed");
+        require(projectId <= projectCount && projectId > 0, "Invalid ID");
+
+        reviews[projectId] = Review(msg.sender, feedback, block.timestamp);
+        projects[projectId].reviewed = true;
+
+        // Rewarding learner and reviewer
+        token.mint(projects[projectId].learner, 10 * 1e18);
+        token.mint(msg.sender, 5 * 1e18);
+
+        emit ProjectReviewed(projectId, msg.sender);
+    }
+
+    function getProject(uint256 projectId) external view returns (Project memory) {
+        return projects[projectId];
+    }
+
+    function getReview(uint256 projectId) external view returns (Review memory) {
+        return reviews[projectId];
+    }
+}
